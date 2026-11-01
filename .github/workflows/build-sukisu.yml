@@ -9,8 +9,9 @@ jobs:
       - name: Checkout Apollo Kernel Source (Fork ổn định)
         uses: actions/checkout@v4
         with:
-          repository: 'duhansysl/exynos9810-kernel'   # Fork ổn định
-          fetch-depth: 1                              # Chỉ tải commit mới nhất
+          repository: 'duhansysl/exynos9810-kernel'
+          fetch-depth: 1
+          submodules: false                           # ĐÃ THÊM: Bỏ qua xử lý submodule để tránh lỗi
 
       - name: Install Build Dependencies
         run: |
