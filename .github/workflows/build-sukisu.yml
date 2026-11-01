@@ -32,28 +32,36 @@ jobs:
       - name: Fix BPF Redefinition (Sửa lỗi trùng lặp hàm)
         run: |
           echo "Đang tìm và xóa định nghĩa trùng lặp của hàm __bpf_prog_charge..."
-          # Tìm số dòng của định nghĩa hàm __bpf_prog_charge thứ 2
           LINE_START=$(grep -n "static inline int __bpf_prog_charge" include/linux/bpf.h | tail -1 | cut -d: -f1)
-          
           if [ -n "$LINE_START" ]; then
-            # Tìm dòng kết thúc của hàm (dấu } đầu tiên sau dòng bắt đầu)
             LINE_END=$(awk -v start="$LINE_START" 'NR>=start && /^}/{print NR; exit}' include/linux/bpf.h)
             echo "Phát hiện khối trùng lặp từ dòng $LINE_START đến $LINE_END. Tiến hành xóa..."
             sed -i "${LINE_START},${LINE_END}d" include/linux/bpf.h
           else
             echo "Không tìm thấy định nghĩa trùng lặp để xóa."
           fi
-          
           echo "Đang kiểm tra tương tự cho hàm __bpf_prog_uncharge..."
-          # Làm tương tự cho hàm uncharge (nếu nó nằm rời rạc)
           LINE_START_U=$(grep -n "static inline void __bpf_prog_uncharge" include/linux/bpf.h | tail -1 | cut -d: -f1)
           if [ -n "$LINE_START_U" ]; then
             LINE_END_U=$(awk -v start="$LINE_START_U" 'NR>=start && /^}/{print NR; exit}' include/linux/bpf.h)
             echo "Phát hiện khối trùng lặp từ dòng $LINE_START_U đến $LINE_END_U. Tiến hành xóa..."
             sed -i "${LINE_START_U},${LINE_END_U}d" include/linux/bpf.h
           fi
-          
           echo "Đã sửa xong BPF."
+
+      - name: Fix Samsung Watchdog Macro & Missing types.h
+        run: |
+          echo "Vá lỗi xung đột macro s3c2410wdt_set_emergency_reset..."
+          # Vô hiệu hóa macro trong exynos-ss.h bằng cách thêm // vào trước
+          if [ -f include/linux/exynos-ss.h ]; then
+            sed -i 's/^#define s3c2410wdt_set_emergency_reset(a, b)    do { } while (0)/\/\/ &/' include/linux/exynos-ss.h
+            echo "Đã vô hiệu hóa macro trong exynos-ss.h."
+          fi
+          
+          echo "Khắc phục lỗi thiếu file types.h..."
+          # Tạo symlink từ vị trí có sẵn đến vị trí mà pwrcal-env.h tìm kiếm
+          sudo ln -sf $(pwd)/include/linux/types.h $(pwd)/drivers/soc/samsung/cal-if/types.h || true
+          echo "Đã tạo symlink cho types.h."
 
       - name: Backport set_memory.h for Kernel < 4.19
         run: |
