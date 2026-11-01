@@ -11,22 +11,22 @@ jobs:
         with:
           repository: 'duhansysl/exynos9810-kernel'
           fetch-depth: 1
-          submodules: false                           # ĐÃ THÊM: Bỏ qua xử lý submodule để tránh lỗi
+          submodules: false                           # Bỏ qua xử lý submodule để tránh lỗi
 
       - name: Install Build Dependencies
         run: |
           sudo apt update
           # Đã sửa lỗi gói apt của Ubuntu 24.04
-          sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses-dev lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3
+          sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses-dev lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 zstd
 
-      - name: Download and Setup Clang 18 Toolchain
+      - name: Download and Setup Clang 18 Toolchain (Greenforce)
         run: |
-          # Tải bản Clang 18.0.0 chính thức từ Android (clang-r510928)
-          curl -LSs "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android14-release/clang-r510928.tar.gz" -o clang.tar.gz
+          # Tải bản Clang 18.0.0 từ Greenforce (ổn định, không bị chặn như Google)
+          curl -LSs "https://github.com/greenforce-project/clang-llvm/releases/download/04102023/greenforce-clang-18.0.0-04102023-1050.tar.zst" -o clang.tar.zst
           
           # Giải nén vào thư mục 'clang'
           mkdir clang
-          tar -xzf clang.tar.gz -C clang
+          tar --zstd -xf clang.tar.zst -C clang --strip-components=1
           
           # Thêm đường dẫn vào biến môi trường của GitHub Actions
           echo "${{ github.workspace }}/clang/bin" >> $GITHUB_PATH
