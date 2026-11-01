@@ -16,16 +16,23 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt update
-          # Đã sửa lỗi gói apt của Ubuntu 24.04
           sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses-dev lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 zstd
 
-      - name: Download and Setup Clang 17 Toolchain
+      - name: Download and Setup Clang 17 Toolchain (AOSP)
         run: |
-          # Sử dụng Clang 17 thay vì Clang 18 để tương thích với kernel 4.9
-          curl -LSs "https://github.com/greenforce-project/clang-llvm/releases/download/26092023/greenforce-clang-17.0.0-26092023.tar.zst" -o clang.tar.zst
-          mkdir clang
-          tar --zstd -xf clang.tar.zst -C clang --strip-components=1
-          echo "${{ github.workspace }}/clang/bin" >> $GITHUB_PATH
+          # Tải bản Clang 17.0.0 chính thức từ Android (clang-r487747)
+          curl -LSs "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android14-release/clang-r487747.tar.gz" -o clang.tar.gz
+          
+          # Kiểm tra xem file tải về có phải là file nén hợp lệ không (tránh lỗi HTML)
+          if file clang.tar.gz | grep -q "gzip compressed data"; then
+            mkdir clang
+            tar -xzf clang.tar.gz -C clang
+            echo "${{ github.workspace }}/clang/bin" >> $GITHUB_PATH
+            echo "Tải và giải nén Clang 17 thành công."
+          else
+            echo "LỖI: File tải về không phải là file nén hợp lệ. Có thể đường dẫn đã bị chặn."
+            exit 1
+          fi
 
       - name: Integrate SukiSU Ultra (Non-GKI)
         run: |
@@ -83,7 +90,7 @@ jobs:
             echo "CONFIG_KPROBES=y" >> $DEFCONFIG
             echo "CONFIG_KSU=y" >> $DEFCONFIG
             echo "CONFIG_KSU_MANUAL_HOOK=y" >> $DEFCONFIG
-            # BẬT TÍNH NĂNG CMA ĐỂ SỬA LỖI MIGRATE_CMA
+            # Bật tính năng CMA để sửa lỗi MIGRATE_CMA
             echo "CONFIG_CMA=y" >> $DEFCONFIG
             echo "CONFIG_CMA_AREAS=7" >> $DEFCONFIG
             make ARCH=arm64 crownlte_defconfig
