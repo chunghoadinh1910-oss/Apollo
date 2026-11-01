@@ -9,14 +9,14 @@ jobs:
       - name: Checkout Apollo Kernel Source (Fork ổn định)
         uses: actions/checkout@v4
         with:
-          repository: 'duhansysl/exynos9810-kernel'   # Chuyển sang fork ổn định
-          ref: 'duhan-(4.9.337)'                      # Nhánh mặc định của fork này
-          fetch-depth: 1                              # Chỉ tải commit mới nhất, tránh timeout
+          repository: 'duhansysl/exynos9810-kernel'   # Fork ổn định
+          fetch-depth: 1                              # Chỉ tải commit mới nhất
 
       - name: Install Build Dependencies
         run: |
           sudo apt update
-          sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3
+          # ĐÃ SỬA: Đổi lib32ncurses5-dev thành lib32ncurses-dev
+          sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses-dev lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3
 
       - name: Clone and Setup Clang Toolchain
         run: |
@@ -38,14 +38,21 @@ jobs:
 
       - name: Configure Kernel (Defconfig)
         run: |
-          # File defconfig chuẩn cho Note 9 (crownlte) trong fork này
+          # File defconfig chuẩn cho Note 9 (crownlte)
           DEFCONFIG="arch/arm64/configs/crownlte_defconfig"
-          echo "CONFIG_KALLSYMS=y" >> $DEFCONFIG
-          echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
-          echo "CONFIG_KPROBES=y" >> $DEFCONFIG
-          echo "CONFIG_KSU=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_MANUAL_HOOK=y" >> $DEFCONFIG
-          make ARCH=arm64 crownlte_defconfig
+          
+          # Kiểm tra xem file defconfig có tồn tại không trước khi sửa
+          if [ -f "$DEFCONFIG" ]; then
+            echo "CONFIG_KALLSYMS=y" >> $DEFCONFIG
+            echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
+            echo "CONFIG_KPROBES=y" >> $DEFCONFIG
+            echo "CONFIG_KSU=y" >> $DEFCONFIG
+            echo "CONFIG_KSU_MANUAL_HOOK=y" >> $DEFCONFIG
+            make ARCH=arm64 crownlte_defconfig
+          else
+            echo "LỖI: Không tìm thấy file $DEFCONFIG. Hãy kiểm tra lại tên file trong repo!"
+            exit 1
+          fi
 
       - name: Build Kernel Image
         run: |
