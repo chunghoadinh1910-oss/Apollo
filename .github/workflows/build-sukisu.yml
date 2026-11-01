@@ -29,20 +29,31 @@ jobs:
         run: |
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
 
-      - name: Fix BPF Redefinition (Xóa định nghĩa trùng lặp)
+      - name: Fix BPF Redefinition (Sửa lỗi trùng lặp hàm)
         run: |
-          echo "Đang kiểm tra và xóa định nghĩa trùng lặp trong include/linux/bpf.h..."
-          cp include/linux/bpf.h include/linux/bpf.h.bak
+          echo "Đang tìm và xóa định nghĩa trùng lặp của hàm __bpf_prog_charge..."
+          # Tìm số dòng của định nghĩa hàm __bpf_prog_charge thứ 2
+          LINE_START=$(grep -n "static inline int __bpf_prog_charge" include/linux/bpf.h | tail -1 | cut -d: -f1)
           
-          # Xóa block định nghĩa __bpf_prog_charge thứ hai (từ dòng 795 đến 800)
-          awk 'BEGIN{count=0} /static inline int __bpf_prog_charge/{count++; if(count==2){skip=6}} {if(skip>0){skip--; next} print}' include/linux/bpf.h.bak > include/linux/bpf.h
-          
-          if diff -q include/linux/bpf.h.bak include/linux/bpf.h > /dev/null; then
-            echo "CẢNH BÁO: Không tìm thấy định nghĩa trùng lặp. Tiến hành xóa cứng theo dòng."
-            sed -i '795,800d' include/linux/bpf.h
+          if [ -n "$LINE_START" ]; then
+            # Tìm dòng kết thúc của hàm (dấu } đầu tiên sau dòng bắt đầu)
+            LINE_END=$(awk -v start="$LINE_START" 'NR>=start && /^}/{print NR; exit}' include/linux/bpf.h)
+            echo "Phát hiện khối trùng lặp từ dòng $LINE_START đến $LINE_END. Tiến hành xóa..."
+            sed -i "${LINE_START},${LINE_END}d" include/linux/bpf.h
           else
-            echo "Đã xóa thành công định nghĩa trùng lặp."
+            echo "Không tìm thấy định nghĩa trùng lặp để xóa."
           fi
+          
+          echo "Đang kiểm tra tương tự cho hàm __bpf_prog_uncharge..."
+          # Làm tương tự cho hàm uncharge (nếu nó nằm rời rạc)
+          LINE_START_U=$(grep -n "static inline void __bpf_prog_uncharge" include/linux/bpf.h | tail -1 | cut -d: -f1)
+          if [ -n "$LINE_START_U" ]; then
+            LINE_END_U=$(awk -v start="$LINE_START_U" 'NR>=start && /^}/{print NR; exit}' include/linux/bpf.h)
+            echo "Phát hiện khối trùng lặp từ dòng $LINE_START_U đến $LINE_END_U. Tiến hành xóa..."
+            sed -i "${LINE_START_U},${LINE_END_U}d" include/linux/bpf.h
+          fi
+          
+          echo "Đã sửa xong BPF."
 
       - name: Backport set_memory.h for Kernel < 4.19
         run: |
