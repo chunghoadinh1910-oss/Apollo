@@ -6,11 +6,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Apollo Kernel Source
+      - name: Checkout Apollo Kernel Source (Fork ổn định)
         uses: actions/checkout@v4
         with:
-          repository: 'ananjaser1211/Apollo'
-          ref: 'master' # Giữ nguyên, nếu lỗi hãy thử 'Apollo'
+          repository: 'duhansysl/exynos9810-kernel'   # Chuyển sang fork ổn định
+          ref: 'duhan-(4.9.337)'                      # Nhánh mặc định của fork này
+          fetch-depth: 1                              # Chỉ tải commit mới nhất, tránh timeout
 
       - name: Install Build Dependencies
         run: |
@@ -24,19 +25,20 @@ jobs:
 
       - name: Integrate SukiSU Ultra (Non-GKI)
         run: |
+          # Script 'nongki' dành riêng cho kernel 4.9
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
 
-      - name: Backport set_memory.h for Kernel 4.19
+      - name: Backport set_memory.h for Kernel < 4.19
         run: |
-          # Tải file set_memory.h từ kernel 4.19 stable
+          # Tải file set_memory.h từ kernel 4.19 (nhánh ổn định)
           curl -LSs "https://raw.githubusercontent.com/torvalds/linux/v4.19/arch/x86/include/asm/set_memory.h" -o /tmp/set_memory_4.19.h
-          # Copy vào thư mục asm-generic (nơi kernel 4.9 tìm kiếm)
+          # Đặt vào đúng thư mục asm của ARM64 để quá trình biên dịch tìm thấy
           sudo mkdir -p arch/arm64/include/asm
           sudo cp /tmp/set_memory_4.19.h arch/arm64/include/asm/set_memory.h
 
       - name: Configure Kernel (Defconfig)
         run: |
-          # SỬA TÊN FILE: crownlte_defconfig (không có tiền tố exynos9810-)
+          # File defconfig chuẩn cho Note 9 (crownlte) trong fork này
           DEFCONFIG="arch/arm64/configs/crownlte_defconfig"
           echo "CONFIG_KALLSYMS=y" >> $DEFCONFIG
           echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
