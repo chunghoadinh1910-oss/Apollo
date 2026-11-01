@@ -1,16 +1,16 @@
 name: Build Apollo Kernel with SukiSU Ultra
 on:
-  workflow_dispatch: # Cho phép kích hoạt build thủ công từ giao diện GitHub
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Apollo Kernel Source
-        uses: actions/checkout@v4 # Dùng v4 là ổn định nhất hiện tại
+        uses: actions/checkout@v4
         with:
           repository: 'ananjaser1211/Apollo'
-          ref: 'master'
+          ref: 'master' # Giữ nguyên, nếu lỗi hãy thử 'Apollo'
 
       - name: Install Build Dependencies
         run: |
@@ -19,33 +19,36 @@ jobs:
 
       - name: Clone and Setup Clang Toolchain
         run: |
-          # Sử dụng Clang 18 build sẵn (nhẹ và nhanh hơn clone llvm-project rất nhiều)
           git clone --depth=1 https://github.com/ZyCromerZ/Clang.git -b 18.0.0 clang
           echo "${{ github.workspace }}/clang/bin" >> $GITHUB_PATH
 
       - name: Integrate SukiSU Ultra (Non-GKI)
         run: |
-          # Sử dụng script 'nongki' dành riêng cho kernel 4.9
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
+
+      - name: Backport set_memory.h for Kernel 4.19
+        run: |
+          # Tải file set_memory.h từ kernel 4.19 stable
+          curl -LSs "https://raw.githubusercontent.com/torvalds/linux/v4.19/arch/x86/include/asm/set_memory.h" -o /tmp/set_memory_4.19.h
+          # Copy vào thư mục asm-generic (nơi kernel 4.9 tìm kiếm)
+          sudo mkdir -p arch/arm64/include/asm
+          sudo cp /tmp/set_memory_4.19.h arch/arm64/include/asm/set_memory.h
 
       - name: Configure Kernel (Defconfig)
         run: |
-          # Bật các cấu hình bắt buộc cho SukiSU trên kernel non-GKI
-          DEFCONFIG="arch/arm64/configs/exynos9810-crownlte_defconfig"
+          # SỬA TÊN FILE: crownlte_defconfig (không có tiền tố exynos9810-)
+          DEFCONFIG="arch/arm64/configs/crownlte_defconfig"
           echo "CONFIG_KALLSYMS=y" >> $DEFCONFIG
           echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
           echo "CONFIG_KPROBES=y" >> $DEFCONFIG
           echo "CONFIG_KSU=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_MANUAL_HOOK=y" >> $DEFCONFIG # Bắt buộc cho kernel < 4.14
-          
-          # Ghi đè cấu hình mặc định
-          make ARCH=arm64 exynos9810-crownlte_defconfig
+          echo "CONFIG_KSU_MANUAL_HOOK=y" >> $DEFCONFIG
+          make ARCH=arm64 crownlte_defconfig
 
       - name: Build Kernel Image
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
-          # Build kernel với Clang 18
           make -j$(nproc --all) CC=clang LLVM=1 Image
 
       - name: Upload Kernel Image Artifact
