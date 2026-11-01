@@ -35,33 +35,47 @@ jobs:
           LINE_START=$(grep -n "static inline int __bpf_prog_charge" include/linux/bpf.h | tail -1 | cut -d: -f1)
           if [ -n "$LINE_START" ]; then
             LINE_END=$(awk -v start="$LINE_START" 'NR>=start && /^}/{print NR; exit}' include/linux/bpf.h)
-            echo "Phát hiện khối trùng lặp từ dòng $LINE_START đến $LINE_END. Tiến hành xóa..."
             sed -i "${LINE_START},${LINE_END}d" include/linux/bpf.h
-          else
-            echo "Không tìm thấy định nghĩa trùng lặp để xóa."
           fi
-          echo "Đang kiểm tra tương tự cho hàm __bpf_prog_uncharge..."
           LINE_START_U=$(grep -n "static inline void __bpf_prog_uncharge" include/linux/bpf.h | tail -1 | cut -d: -f1)
           if [ -n "$LINE_START_U" ]; then
             LINE_END_U=$(awk -v start="$LINE_START_U" 'NR>=start && /^}/{print NR; exit}' include/linux/bpf.h)
-            echo "Phát hiện khối trùng lặp từ dòng $LINE_START_U đến $LINE_END_U. Tiến hành xóa..."
             sed -i "${LINE_START_U},${LINE_END_U}d" include/linux/bpf.h
           fi
-          echo "Đã sửa xong BPF."
 
-      - name: Fix Samsung Watchdog Macro & Missing types.h
+      - name: Fix Exynos Header Conflicts (Macro & Missing console.h)
         run: |
-          echo "Vá lỗi xung đột macro s3c2410wdt_set_emergency_reset..."
-          # Vô hiệu hóa macro trong exynos-ss.h bằng cách thêm // vào trước
+          echo "1. Xóa định nghĩa macro s3c2410wdt_set_emergency_reset trong exynos-ss.h..."
+          # Xóa hẳn dòng #define gây xung đột
           if [ -f include/linux/exynos-ss.h ]; then
-            sed -i 's/^#define s3c2410wdt_set_emergency_reset(a, b)    do { } while (0)/\/\/ &/' include/linux/exynos-ss.h
-            echo "Đã vô hiệu hóa macro trong exynos-ss.h."
+            sed -i '/#define s3c2410wdt_set_emergency_reset/d' include/linux/exynos-ss.h
+            echo "Đã xóa macro trong exynos-ss.h."
           fi
-          
-          echo "Khắc phục lỗi thiếu file types.h..."
-          # Tạo symlink từ vị trí có sẵn đến vị trí mà pwrcal-env.h tìm kiếm
-          sudo ln -sf $(pwd)/include/linux/types.h $(pwd)/drivers/soc/samsung/cal-if/types.h || true
-          echo "Đã tạo symlink cho types.h."
+
+          echo "2. Thêm #undef vào exynos-condbg.h để đảm bảo không còn xung đột..."
+          if [ -f include/soc/samsung/exynos-condbg.h ]; then
+            # Chèn #undef vào đầu file
+            sed -i '1i #undef s3c2410wdt_set_emergency_reset' include/soc/samsung/exynos-condbg.h
+            echo "Đã chèn #undef vào exynos-condbg.h."
+          fi
+
+          echo "3. Khắc phục lỗi thiếu file console.h..."
+          # Tạo thư mục đích nếu chưa có
+          mkdir -p drivers/soc/samsung/cal-if
+          # Tìm console.h trong include/linux (vị trí chuẩn)
+          if [ -f include/linux/console.h ]; then
+            ln -sf $(pwd)/include/linux/console.h drivers/soc/samsung/cal-if/console.h
+            echo "Đã tạo symlink từ include/linux/console.h."
+          else
+            # Dự phòng: tìm trong drivers/tty
+            CONSOLE_H=$(find drivers/tty -name "console.h" 2>/dev/null | head -1)
+            if [ -n "$CONSOLE_H" ]; then
+              ln -sf $(pwd)/$CONSOLE_H drivers/soc/samsung/cal-if/console.h
+              echo "Đã tạo symlink từ $CONSOLE_H."
+            else
+              echo "CẢNH BÁO: Không tìm thấy console.h ở bất kỳ đâu!"
+            fi
+          fi
 
       - name: Backport set_memory.h for Kernel < 4.19
         run: |
