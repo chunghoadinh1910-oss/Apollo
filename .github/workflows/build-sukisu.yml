@@ -16,11 +16,13 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt update
+          # Đã sửa lỗi gói apt của Ubuntu 24.04
           sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses-dev lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 zstd
 
-      - name: Download and Setup Clang 18 Toolchain (Greenforce)
+      - name: Download and Setup Clang 17 Toolchain
         run: |
-          curl -LSs "https://github.com/greenforce-project/clang-llvm/releases/download/04102023/greenforce-clang-18.0.0-04102023-1050.tar.zst" -o clang.tar.zst
+          # Sử dụng Clang 17 thay vì Clang 18 để tương thích với kernel 4.9
+          curl -LSs "https://github.com/greenforce-project/clang-llvm/releases/download/26092023/greenforce-clang-17.0.0-26092023.tar.zst" -o clang.tar.zst
           mkdir clang
           tar --zstd -xf clang.tar.zst -C clang --strip-components=1
           echo "${{ github.workspace }}/clang/bin" >> $GITHUB_PATH
@@ -43,39 +45,27 @@ jobs:
             sed -i "${LINE_START_U},${LINE_END_U}d" include/linux/bpf.h
           fi
 
-      - name: Fix Exynos Header Conflicts (Macro & Missing console.h)
+      - name: Fix Exynos Header Conflicts (Macro & Missing headers)
         run: |
           echo "1. Xóa định nghĩa macro s3c2410wdt_set_emergency_reset trong exynos-ss.h..."
-          # Xóa hẳn dòng #define gây xung đột
           if [ -f include/linux/exynos-ss.h ]; then
             sed -i '/#define s3c2410wdt_set_emergency_reset/d' include/linux/exynos-ss.h
-            echo "Đã xóa macro trong exynos-ss.h."
           fi
-
-          echo "2. Thêm #undef vào exynos-condbg.h để đảm bảo không còn xung đột..."
+          echo "2. Thêm #undef vào exynos-condbg.h..."
           if [ -f include/soc/samsung/exynos-condbg.h ]; then
-            # Chèn #undef vào đầu file
             sed -i '1i #undef s3c2410wdt_set_emergency_reset' include/soc/samsung/exynos-condbg.h
-            echo "Đã chèn #undef vào exynos-condbg.h."
           fi
-
-          echo "3. Khắc phục lỗi thiếu file console.h..."
-          # Tạo thư mục đích nếu chưa có
+          echo "3. Khắc phục lỗi thiếu file console.h và types.h..."
           mkdir -p drivers/soc/samsung/cal-if
-          # Tìm console.h trong include/linux (vị trí chuẩn)
+          # Tạo symlink cho console.h
           if [ -f include/linux/console.h ]; then
             ln -sf $(pwd)/include/linux/console.h drivers/soc/samsung/cal-if/console.h
-            echo "Đã tạo symlink từ include/linux/console.h."
-          else
-            # Dự phòng: tìm trong drivers/tty
-            CONSOLE_H=$(find drivers/tty -name "console.h" 2>/dev/null | head -1)
-            if [ -n "$CONSOLE_H" ]; then
-              ln -sf $(pwd)/$CONSOLE_H drivers/soc/samsung/cal-if/console.h
-              echo "Đã tạo symlink từ $CONSOLE_H."
-            else
-              echo "CẢNH BÁO: Không tìm thấy console.h ở bất kỳ đâu!"
-            fi
           fi
+          # Tạo symlink cho types.h
+          if [ -f include/linux/types.h ]; then
+            ln -sf $(pwd)/include/linux/types.h drivers/soc/samsung/cal-if/types.h
+          fi
+          echo "Đã hoàn tất vá header."
 
       - name: Backport set_memory.h for Kernel < 4.19
         run: |
@@ -87,11 +77,15 @@ jobs:
         run: |
           DEFCONFIG="arch/arm64/configs/crownlte_defconfig"
           if [ -f "$DEFCONFIG" ]; then
+            # Bật các cấu hình bắt buộc cho SukiSU
             echo "CONFIG_KALLSYMS=y" >> $DEFCONFIG
             echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
             echo "CONFIG_KPROBES=y" >> $DEFCONFIG
             echo "CONFIG_KSU=y" >> $DEFCONFIG
             echo "CONFIG_KSU_MANUAL_HOOK=y" >> $DEFCONFIG
+            # BẬT TÍNH NĂNG CMA ĐỂ SỬA LỖI MIGRATE_CMA
+            echo "CONFIG_CMA=y" >> $DEFCONFIG
+            echo "CONFIG_CMA_AREAS=7" >> $DEFCONFIG
             make ARCH=arm64 crownlte_defconfig
           else
             echo "LỖI: Không tìm thấy file $DEFCONFIG."
