@@ -6,12 +6,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Apollo Kernel Source
-        uses: actions/checkout@v4
-        with:
-          repository: 'ananjaser1211/Apollo' # Sử dụng trực tiếp source gốc
-          ref: 'master' # Hoặc nhánh bạn muốn, ví dụ 'oneui5.1'
-
+  - name: Checkout Apollo Kernel Source
+  uses: actions/checkout@v5  # Đã nâng cấp từ v4 lên v5
+  with:
+    repository: 'ananjaser1211/Apollo'
+    ref: 'master'
       - name: Install Build Dependencies
         run: |
           sudo apt update
